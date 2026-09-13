@@ -1,6 +1,6 @@
 {
   "name": "opencode-lemonade",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenCode plugin for dynamic Lemonade model discovery and zero-config provider setup",
   "type": "module",
   "license": "MIT",
