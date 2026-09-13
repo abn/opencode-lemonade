@@ -9,6 +9,8 @@ Dynamic model discovery and zero-config provider initialization for [Lemonade](h
 
 This plugin connects OpenCode to a Lemonade server, discovering all available or downloaded models at startup through the canonical OpenCode `config` plugin hook. It removes the need to manually enumerate models, context sizes, output token limits, and vision modalities in your `opencode.json` / `opencode.jsonc`.
 
+![Model picker with discovered Lemonade models, showing the hovered model's context size and reasoning capability](docs/images/model-picker.png)
+
 ### Key features
 
 - **Zero-config auto-registration**: automatically configures the `lemonade` provider with `@ai-sdk/openai-compatible` if not already defined.

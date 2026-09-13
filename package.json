@@ -19,7 +19,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/images"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
