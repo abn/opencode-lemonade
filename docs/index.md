@@ -1,0 +1,16 @@
+---
+okf_version: "0.2"
+---
+
+# opencode-lemonade
+
+Dynamic model discovery and zero-config provider setup for Lemonade in OpenCode.
+
+- [Overview](overview.md)
+- [Design](design/rationale.md)
+- [Architecture](architecture/plugin.md)
+- [Usage](usage/configuration.md)
+- [Reference](reference/options.md)
+- [Server API contract](reference/server-api.md)
+- [Contribution](contribution/maintainer.md)
+- [Knowledge log](log.md)

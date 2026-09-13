@@ -1,0 +1,16 @@
+# Scratch area (local-only, never committed)
+.agents/brain/
+
+# Generated build output
+dist/
+node_modules/
+
+# Local state
+*.log
+.env
+.env.local
+
+# Editor and OS droppings
+.DS_Store
+.idea/
+.vscode/

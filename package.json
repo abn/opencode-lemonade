@@ -1,0 +1,42 @@
+{
+  "name": "opencode-lemonade",
+  "version": "0.1.0",
+  "description": "OpenCode plugin for dynamic Lemonade model discovery and zero-config provider setup",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abn/opencode-lemonade.git"
+  },
+  "main": "./dist/lemonade-discovery.js",
+  "types": "./dist/lemonade-discovery.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lemonade-discovery.d.ts",
+      "default": "./dist/lemonade-discovery.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "node --test",
+    "lint": "npm run typecheck && prettier --check .",
+    "fmt": "prettier --write .",
+    "prepublishOnly": "make check",
+    "check-okf": "node scripts/check-okf.mjs",
+    "check": "npm run check-okf && npm run lint && npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "prettier": "^3.4.0",
+    "typescript": "^7.0.2"
+  }
+}
