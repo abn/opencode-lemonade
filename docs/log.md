@@ -16,3 +16,5 @@ status: active
 - Removed the legacy `provider.<id>.options.discovery` configuration nesting; the plugin reads options only from plugin options.
 - Swapped the API key environment fallback to prefer `LEMONADE_API_KEY` over `LEMONADE_ADMIN_API_KEY`.
 - Added the `servers` option: additional named Lemonade servers register as their own OpenCode providers, merging over the top-level options; provider display names are configurable via `name`.
+- Bumped dev toolchain to TypeScript 7 (native compiler) and `@types/node` 26.
+- Published `opencode-lemonade@0.1.0` as the initial npm release; raised the release-please baseline to `0.2.0` for the first automated release.
