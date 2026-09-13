@@ -36,7 +36,13 @@ See [the design rationale](docs/design/rationale.md) for more detail.
 
 ### From npm
 
-Add the plugin to your OpenCode config:
+Install globally and register the plugin in your OpenCode config in one step:
+
+```bash
+opencode plugin opencode-lemonade -g
+```
+
+Alternatively, add the plugin to your OpenCode config and let OpenCode resolve it:
 
 ```jsonc
 {
