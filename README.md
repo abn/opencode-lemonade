@@ -63,7 +63,7 @@ OpenCode loads any `.js` or `.ts` file found in `~/.config/opencode/plugins/`.
 
 ## Configuration
 
-The plugin works with zero configuration using default environment variables. Options are passed as plugin options; custom hosts, API keys, and headers are plugin options too, so no provider block is needed for those:
+The plugin works with zero configuration using default environment variables. Options are passed as plugin options; custom hosts, API keys, and headers are plugin options too, so no provider block is needed for those. To pass options, replace the plain plugin entry with a `[name, options]` tuple:
 
 ```jsonc
 {
