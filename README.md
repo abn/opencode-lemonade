@@ -1,5 +1,8 @@
 # opencode-lemonade
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/abn/opencode-lemonade)
+[![npm version](https://img.shields.io/npm/v/opencode-lemonade.svg)](https://npmjs.org/package/opencode-lemonade)
+
 Dynamic model discovery and zero-config provider initialization for [Lemonade](https://github.com/lemonade-sdk/lemonade) in [OpenCode](https://opencode.ai).
 
 ## Overview
