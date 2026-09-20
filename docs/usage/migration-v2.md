@@ -98,6 +98,11 @@ The plugin still maps the Lemonade `reasoning` label, now onto v2's
 `reasoning` and `interleaved` fields. Override `compatibility.reasoningField` per
 model if the backend returns reasoning under a different field.
 
+Thinking effort works differently in v2: it is a per-model `variants` setting
+(`reasoningEffort`) rather than a single flag, and it is declared through
+overrides because Lemonade supports it per model and template. See the
+[reasoning guide](reasoning.md) for examples and the backend support caveats.
+
 ## Removed features
 
 - `small_model`: v2 has no plugin-facing small-model setting. Remove the option; select a small model through OpenCode itself.
