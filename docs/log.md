@@ -14,6 +14,7 @@ status: active
 - Documented two features removed because v2 has no equivalent: the `small_model` option and the `reasoning` capability mapping; the options reference, server API contract, and design rationale note both.
 - Recorded provider-preservation behavior: an existing configured provider keeps its settings and defined models, and only new discovered model ids are added.
 - Refreshed the README install and configuration instructions for v2 (`plugins` config key, `opencode plugin add`, `.opencode/plugins/` discovery).
+- Added a v1 to v2 migration guide (`usage/migration-v2.md`) covering the config key, provider shape, override field renames, and removed features, linked from the README and the bundle index.
 
 ## 2026-09-13
 
