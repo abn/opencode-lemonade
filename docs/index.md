@@ -10,6 +10,7 @@ Dynamic model discovery and zero-config provider setup for Lemonade in OpenCode.
 - [Design](design/rationale.md)
 - [Architecture](architecture/plugin.md)
 - [Usage](usage/configuration.md)
+- [Migrating from v1 to v2](usage/migration-v2.md)
 - [Reference](reference/options.md)
 - [Server API contract](reference/server-api.md)
 - [Contribution](contribution/maintainer.md)

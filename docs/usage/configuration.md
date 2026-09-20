@@ -7,7 +7,7 @@ status: active
 
 # Usage and configuration
 
-This is a v2 OpenCode plugin and requires OpenCode 2.x.
+This is a v2 OpenCode plugin and requires OpenCode 2.x. Upgrading from v1? See the [migration guide](migration-v2.md).
 
 ## Installation
 

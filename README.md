@@ -15,7 +15,7 @@ On OpenCode 1.x, pin the last v1 release, `opencode-lemonade@0.3.0`:
 }
 ```
 
-That line uses the v1 `plugin` config key and the v1 plugin implementation. Version 1.0.0 and later target OpenCode 2.x only.
+That line uses the v1 `plugin` config key and the v1 plugin implementation. Version 1.0.0 and later target OpenCode 2.x only. See the [v1 to v2 migration guide](docs/usage/migration-v2.md) for the config and override changes.
 
 ## Overview
 
