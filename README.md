@@ -106,6 +106,7 @@ The plugin works with zero configuration using default environment variables. Op
         "exclude_labels": ["embedding", "tts", "stt"],
         "default_output_limit": 8192,
         "max_context_limit": 128000,
+        "timeout_ms": 10000,
       },
     },
   ],
@@ -115,6 +116,15 @@ The plugin works with zero configuration using default environment variables. Op
 `host` and `apiKey` fall back to the `LEMONADE_HOST` and `LEMONADE_API_KEY`
 environment variables when omitted. Only pre-define the provider when you need
 settings the plugin does not manage, such as a different provider package; the plugin keeps an existing provider and only adds the discovered models.
+
+### Fetch timeout
+
+Discovery runs once at load and aborts after `timeout_ms`, which defaults to
+`3000`. A cold Lemonade server can take close to that to answer the first
+catalog request; when it does, discovery gives up and the provider is registered
+with no models until the next load. Set `timeout_ms` higher (for example
+`10000`) on slower hosts or when the server runs on modest hardware. The plugin
+still never blocks startup past the timeout.
 
 ### Environment variables
 
