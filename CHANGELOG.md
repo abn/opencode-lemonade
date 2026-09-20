@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/abn/opencode-lemonade/compare/v1.0.0...v1.1.0) (2026-09-20)
+
+
+### Features
+
+* register reasoning models with a reasoning field ([#9](https://github.com/abn/opencode-lemonade/issues/9)) ([483ebe6](https://github.com/abn/opencode-lemonade/commit/483ebe627181eba6f140598d50349d3f28e7a976))
+
 ## [1.0.0](https://github.com/abn/opencode-lemonade/compare/v0.3.0...v1.0.0) (2026-09-20)
 
 
