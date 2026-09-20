@@ -11,7 +11,7 @@ status: active
 
 - Rewrote the bundle for the OpenCode v2 plugin API: the architecture page now describes `Plugin.define` / `setup` and `ctx.provider.transform` in place of the v1 `config` hook, and records the `opencode-lemonade` plugin id.
 - Updated the options reference and usage guide to the v2 config forms (`plugins` with `{ package, options }`) and to v2 `Model.Info` field names for per-model overrides (`capabilities`, `limit`, `modelID`).
-- Documented two features removed because v2 has no equivalent: the `small_model` option and the `reasoning` capability mapping; the options reference, server API contract, and design rationale note both.
+- Documented the v2 reasoning mechanism: the Lemonade `reasoning` label maps to `compatibility.reasoningField: "reasoning_content"`, replacing the removed v1 `reasoning` and `interleaved` fields. Recorded the one feature with no v2 equivalent, the `small_model` option.
 - Recorded provider-preservation behavior: an existing configured provider keeps its settings and defined models, and only new discovered model ids are added.
 - Refreshed the README install and configuration instructions for v2 (`plugins` config key, `opencode plugin add`, `.opencode/plugins/` discovery).
 - Added a v1 to v2 migration guide (`usage/migration-v2.md`) covering the config key, provider shape, override field renames, and removed features, linked from the README and the bundle index.

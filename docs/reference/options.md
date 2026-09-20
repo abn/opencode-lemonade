@@ -50,10 +50,10 @@ increasing precedence:
 
 Overrides use v2 `Model.Info` field names, the same shape OpenCode stores for a
 model: `name`, `limit.context`, `limit.output`, `capabilities.tools`,
-`capabilities.input`, `capabilities.output`, `modelID`, `status`, and so on.
-`modelID` maps the entry to a different API model id, for example an
-Azure-style deployment name where the server model id differs from the id sent
-in requests.
+`capabilities.input`, `capabilities.output`, `compatibility.reasoningField`,
+`modelID`, `status`, and so on. `modelID` maps the entry to a different API
+model id, for example an Azure-style deployment name where the server model id
+differs from the id sent in requests.
 
 Merging is recursive: nested objects merge field by field, while scalar values
 and arrays replace the discovered value. `undefined` values are ignored, so an
@@ -65,5 +65,8 @@ When a provider already exists in the OpenCode config, the plugin preserves its
 settings and any models it defines. A discovered model whose id is already
 defined by the provider is left untouched; only new ids are added.
 
-The v2 model schema has no `reasoning` capability, so the Lemonade `reasoning`
-label is no longer mapped and cannot be set through overrides.
+Models the server labels `reasoning` are registered with
+`compatibility.reasoningField: "reasoning_content"`, which is how v2 marks a
+model as reasoning-capable and selects the response field that carries
+reasoning. Override `compatibility.reasoningField` per model when a backend uses
+a different field, such as `reasoning`.

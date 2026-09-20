@@ -269,6 +269,7 @@ test("resolveModelInfo: maps labels to v2 capabilities", () => {
     input: ["text"],
     output: ["text"],
   });
+  assert.equal(capable.compatibility, undefined);
 
   const plain = resolveModelInfo(
     providerID,
@@ -279,6 +280,30 @@ test("resolveModelInfo: maps labels to v2 capabilities", () => {
     tools: false,
     input: ["text"],
     output: ["text"],
+  });
+  assert.equal(plain.compatibility, undefined);
+});
+
+test("resolveModelInfo: reasoning label sets the reasoning field", () => {
+  const providerID = Provider.ID.make("lemonade");
+  const reasoner = resolveModelInfo(
+    providerID,
+    model({ id: "DeepSeek-R1", labels: ["reasoning", "tool-calling"] }),
+    {},
+  );
+
+  assert.deepEqual(reasoner.compatibility, {
+    reasoningField: "reasoning_content",
+  });
+
+  const overridden = resolveModelInfo(
+    providerID,
+    model({ id: "DeepSeek-R1", labels: ["reasoning"] }),
+    {},
+    { compatibility: { reasoningField: "reasoning" } },
+  );
+  assert.deepEqual(overridden.compatibility, {
+    reasoningField: "reasoning",
   });
 });
 
@@ -363,6 +388,28 @@ test("plugin: tool-calling label enables tools capability", async () => {
     const records = await runPlugin();
     const entry = modelEntry(records, "DeepSeek-R1");
     assert.equal(entry.capabilities.tools, true);
+    assert.equal(entry.compatibility, undefined);
+  } finally {
+    fetchMock.mock.restore();
+  }
+});
+
+test("plugin: reasoning label sets the reasoning field", async () => {
+  const fetchMock = mock.method(globalThis, "fetch", async () => ({
+    ok: true,
+    json: async () => ({
+      data: [
+        model({ id: "DeepSeek-R1", labels: ["reasoning", "tool-calling"] }),
+      ],
+    }),
+  }));
+
+  try {
+    const records = await runPlugin();
+    const entry = modelEntry(records, "DeepSeek-R1");
+    assert.deepEqual(entry.compatibility, {
+      reasoningField: "reasoning_content",
+    });
   } finally {
     fetchMock.mock.restore();
   }
@@ -381,6 +428,7 @@ test("plugin: models without capability labels expose no tools", async () => {
     const entry = modelEntry(records, "plain");
     assert.equal(entry.capabilities.tools, false);
     assert.deepEqual(entry.capabilities.input, ["text"]);
+    assert.equal(entry.compatibility, undefined);
   } finally {
     fetchMock.mock.restore();
   }
