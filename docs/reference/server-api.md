@@ -48,18 +48,18 @@ Fields the plugin consumes:
 
 Each catalog entry becomes a v2 `Model.Info` entry on the provider:
 
-| v2 model field        | Source                                          |
-| :-------------------- | :---------------------------------------------- |
-| `name`                | name resolution chain                           |
-| `limit.context`       | context resolution chain                        |
-| `limit.output`        | output resolution chain                         |
-| `capabilities.input`  | `["text", "image"]` for vision, else `["text"]` |
-| `capabilities.output` | `["text"]`                                      |
-| `capabilities.tools`  | `tool-calling` label                            |
+| v2 model field                 | Source                                          |
+| :----------------------------- | :---------------------------------------------- |
+| `name`                         | name resolution chain                           |
+| `limit.context`                | context resolution chain                        |
+| `limit.output`                 | output resolution chain                         |
+| `capabilities.input`           | `["text", "image"]` for vision, else `["text"]` |
+| `capabilities.output`          | `["text"]`                                      |
+| `capabilities.tools`           | `tool-calling` label                            |
+| `compatibility.reasoningField` | `"reasoning_content"` for the `reasoning` label |
 
-The v2 model schema has no `reasoning` capability, so the `reasoning` label is
-not mapped. The `modelID` field and any other v2 model field can be set through
-`models` / `overrides`; see the [options reference](options.md).
+The `modelID` field and any other v2 model field can be set through `models` /
+`overrides`; see the [options reference](options.md).
 
 ## Tracking
 

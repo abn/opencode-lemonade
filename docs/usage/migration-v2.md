@@ -58,6 +58,8 @@ Overrides use v2 `Model.Info` field names. The v1 field names no longer apply.
 | `attachment: true`               | `capabilities.input: ["text", "image"]`      |
 | `modalities.input` / `.output`   | `capabilities.input` / `capabilities.output` |
 | `tool_call`                      | `capabilities.tools`                         |
+| `reasoning: true`                | `compatibility.reasoningField`               |
+| `interleaved: { field: "..." }`  | `compatibility.reasoningField`               |
 | `id`                             | `modelID`                                    |
 | `limit.context` / `limit.output` | unchanged                                    |
 | `name`                           | unchanged                                    |
@@ -69,6 +71,8 @@ Overrides use v2 `Model.Info` field names. The v1 field names no longer apply.
     "user.My-Model": {
       "id": "my-deployment-name",
       "tool_call": false,
+      "reasoning": true,
+      "interleaved": { "field": "reasoning_content" },
     },
   },
 }
@@ -81,17 +85,22 @@ Overrides use v2 `Model.Info` field names. The v1 field names no longer apply.
     "user.My-Model": {
       "modelID": "my-deployment-name",
       "capabilities": { "tools": false },
+      "compatibility": { "reasoningField": "reasoning_content" },
     },
   },
 }
 ```
 
+## Reasoning
+
+The plugin still maps the Lemonade `reasoning` label, now onto v2's
+`compatibility.reasoningField: "reasoning_content"` instead of the v1
+`reasoning` and `interleaved` fields. Override `compatibility.reasoningField` per
+model if the backend returns reasoning under a different field.
+
 ## Removed features
 
-Two v1 features have no v2 equivalent and were removed:
-
 - `small_model`: v2 has no plugin-facing small-model setting. Remove the option; select a small model through OpenCode itself.
-- The `reasoning` label mapping: v2 `Model.Info.capabilities` only exposes `tools`, `input`, and `output`, so the Lemonade `reasoning` label is no longer mapped and `reasoning` is not a valid override field.
 
 ## Existing provider models
 
@@ -101,7 +110,7 @@ If a provider is already defined in config, the plugin preserves its settings an
 
 1. Confirm the plugin id appears in the active plugin list (`opencode plugin list`).
 2. Open the model picker and check that the Lemonade models appear with their context and output limits.
-3. Exercise a vision model and a tool-calling model to confirm the capabilities carried over.
+3. Exercise a vision model, a tool-calling model, and a reasoning model to confirm the capabilities carried over.
 4. If the server is offline, confirm OpenCode still starts and registers the provider with no models.
 
 See the [usage guide](configuration.md) for the full v2 configuration and the [options reference](../reference/options.md) for every option.

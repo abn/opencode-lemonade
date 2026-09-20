@@ -4,6 +4,8 @@ import * as fs from "node:fs";
 export const LEMONADE_PROVIDER_PACKAGE =
   "@opencode/ai/providers/openai-compatible";
 
+export const LEMONADE_REASONING_FIELD = "reasoning_content";
+
 export interface LemonadeDiscoveryOptions {
   name?: string;
   host?: string;
@@ -195,6 +197,7 @@ export function resolveModelInfo(
     model.id.toLowerCase().includes("vl");
 
   const isToolCalling = model.labels?.includes("tool-calling") ?? false;
+  const isReasoning = model.labels?.includes("reasoning") ?? false;
 
   const base: Model.Info = {
     ...Model.Info.default(providerID, Model.ID.make(model.id)),
@@ -205,6 +208,9 @@ export function resolveModelInfo(
       input: isVision ? ["text", "image"] : ["text"],
       output: ["text"],
     },
+    ...(isReasoning
+      ? { compatibility: { reasoningField: LEMONADE_REASONING_FIELD } }
+      : {}),
   };
 
   return deepMerge(

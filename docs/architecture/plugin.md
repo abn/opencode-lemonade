@@ -27,13 +27,15 @@ existing provider settings through `ctx.provider.get`, and registers providers a
 
 Lemonade model labels map to v2 `Model.Info` fields:
 
-| Lemonade label                             | v2 model field                          |
-| :----------------------------------------- | :-------------------------------------- |
-| `vision` / `vlm` (or `vl` in the model id) | `capabilities.input: ["text", "image"]` |
-| `tool-calling`                             | `capabilities.tools: true`              |
+| Lemonade label                             | v2 model field                                      |
+| :----------------------------------------- | :-------------------------------------------------- |
+| `vision` / `vlm` (or `vl` in the model id) | `capabilities.input: ["text", "image"]`             |
+| `tool-calling`                             | `capabilities.tools: true`                          |
+| `reasoning`                                | `compatibility.reasoningField: "reasoning_content"` |
 
-The v2 model schema has no `reasoning` capability, so the plugin no longer maps the Lemonade `reasoning` label. Any of
-these can be overridden or extended per model through the overrides mechanism; see the [options reference](../reference/options.md).
+`compatibility.reasoningField` tells OpenCode which response field carries the model's reasoning, so the picker marks
+the model as reasoning-capable and reasoning content is parsed. Any of these can be overridden or extended per model
+through the overrides mechanism; see the [options reference](../reference/options.md).
 
 ## Lemonade MCP gateway
 
