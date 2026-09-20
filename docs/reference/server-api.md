@@ -46,18 +46,19 @@ Fields the plugin consumes:
 
 ## Model entry mapping
 
-Each catalog entry becomes an OpenCode provider model entry:
+Each catalog entry becomes a v2 `Model.Info` entry on the provider:
 
-| OpenCode field  | Source                                 |
-| :-------------- | :------------------------------------- |
-| `limit.context` | context resolution chain               |
-| `limit.output`  | output resolution chain                |
-| `attachment`    | `vision`/`vlm` label or `vl` in the id |
-| `modalities`    | `text` and `image` input when vision   |
-| `tool_call`     | `tool-calling` label                   |
-| `reasoning`     | `reasoning` label                      |
+| v2 model field        | Source                                          |
+| :-------------------- | :---------------------------------------------- |
+| `name`                | name resolution chain                           |
+| `limit.context`       | context resolution chain                        |
+| `limit.output`        | output resolution chain                         |
+| `capabilities.input`  | `["text", "image"]` for vision, else `["text"]` |
+| `capabilities.output` | `["text"]`                                      |
+| `capabilities.tools`  | `tool-calling` label                            |
 
-The per-model `id` field and any other OpenCode model field can be set through
+The v2 model schema has no `reasoning` capability, so the `reasoning` label is
+not mapped. The `modelID` field and any other v2 model field can be set through
 `models` / `overrides`; see the [options reference](options.md).
 
 ## Tracking

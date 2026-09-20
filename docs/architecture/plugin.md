@@ -1,34 +1,39 @@
 ---
 type: Architecture
 title: Plugin architecture
-description: How the plugin fits into OpenCode's startup lifecycle.
+description: How the plugin fits into OpenCode's v2 plugin lifecycle.
 status: active
 ---
 
 # Plugin architecture
 
-The plugin exposes a single hook, `config`, that OpenCode calls during startup. The hook:
+The plugin default-exports a v2 plugin definition, `Plugin.define({ id: "opencode-lemonade", setup })`. OpenCode calls
+`setup(ctx)` when the plugin loads. Because the v2 transform callbacks are synchronous and replayable, discovery runs
+first and the results are captured, then a single `ctx.provider.transform` registers everything:
 
-1. Merges plugin options with the existing provider configuration.
-2. Resolves the host and API key through the layered resolution order.
-3. Fetches `/v1/models` from the server, adding `?show_all=true` when the full catalog is requested.
-4. Filters the catalog using the merged options.
-5. Creates the provider entry (with `@ai-sdk/openai-compatible`) if absent.
-6. Registers each model with its context and output limits, mapping capability labels (vision, tool-calling, reasoning), and deep-merges any per-model overrides (`discovery.models`, `discovery.overrides`) and pre-configured `provider.<id>.models` entries over the discovered metadata.
+1. Resolves each server's host and API key through the layered resolution order.
+2. Fetches `/v1/models` from the server, adding `?show_all=true` when the full catalog is requested.
+3. Filters the catalog using the merged options.
+4. Registers each model as a `Model.Info` with its context and output limits plus label-derived capabilities, and deep-merges any per-model overrides (`models`, `overrides`) over the discovered metadata.
+5. Adds the provider (with `package: "@opencode/ai/providers/openai-compatible"` and `activation: "enabled"`) when absent. When the provider already exists in config, the plugin preserves it and only adds discovered models whose ids are not already defined.
 
-If the server is offline or slow, the hook returns the provider entry unchanged, so startup never blocks on the server.
+If the server is offline or slow, the provider is still registered with no models, so startup never blocks on the server.
+
+The v2 context is both the OpenCode client and the plugin extension API. The plugin reads `ctx.options`, optionally reads
+existing provider settings through `ctx.provider.get`, and registers providers and models through
+`ctx.provider.transform`.
 
 ## Capability mapping
 
-Lemonade model labels map to OpenCode model capabilities:
+Lemonade model labels map to v2 `Model.Info` fields:
 
-| Lemonade label                             | OpenCode fields                                           |
-| :----------------------------------------- | :-------------------------------------------------------- |
-| `vision` / `vlm` (or `vl` in the model id) | `attachment: true`, `modalities.input: ["text", "image"]` |
-| `tool-calling`                             | `tool_call: true`                                         |
-| `reasoning`                                | `reasoning: true`                                         |
+| Lemonade label                             | v2 model field                          |
+| :----------------------------------------- | :-------------------------------------- |
+| `vision` / `vlm` (or `vl` in the model id) | `capabilities.input: ["text", "image"]` |
+| `tool-calling`                             | `capabilities.tools: true`              |
 
-Any of these can be overridden or extended per model through the overrides mechanism; see the [options reference](../reference/options.md).
+The v2 model schema has no `reasoning` capability, so the plugin no longer maps the Lemonade `reasoning` label. Any of
+these can be overridden or extended per model through the overrides mechanism; see the [options reference](../reference/options.md).
 
 ## Lemonade MCP gateway
 
@@ -63,5 +68,5 @@ rationale](../design/rationale.md).
 Source layout:
 
 - `src/lemonade-discovery.ts` plugin source and exports
-- `test/lemonade-discovery.test.ts` unit tests for filtering, resolution, and the hook
+- `test/lemonade-discovery.test.ts` unit tests for filtering, resolution, and discovery
 - `dist/` compiled output (built, not committed)

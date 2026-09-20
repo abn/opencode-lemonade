@@ -7,52 +7,59 @@ status: active
 
 # Usage and configuration
 
+This is a v2 OpenCode plugin and requires OpenCode 2.x.
+
 ## Installation
 
 ### From npm
 
-Add the plugin to the OpenCode config:
+Add the plugin with the CLI:
+
+```bash
+opencode plugin add opencode-lemonade
+```
+
+Or declare it in the OpenCode config:
 
 ```jsonc
 {
-  "plugin": ["opencode-lemonade"],
+  "plugins": ["opencode-lemonade"],
 }
 ```
 
 ### Local build
 
-Build and copy the compiled plugin into the plugins directory:
+Build and copy the compiled plugin into a project plugin directory:
 
 ```bash
 npm run build
-mkdir -p ~/.config/opencode/plugins
-cp dist/lemonade-discovery.js ~/.config/opencode/plugins/
+mkdir -p .opencode/plugins
+cp dist/lemonade-discovery.js .opencode/plugins/
 ```
 
-OpenCode loads any `.js` or `.ts` file found in the plugins directory.
+OpenCode loads `.js` and `.ts` files from `.opencode/plugins/` in a project and
+from `~/.config/opencode/plugins/` globally.
 
 ## Zero-config use
 
-With no provider defined, the plugin creates the `lemonade` provider backed by `@ai-sdk/openai-compatible`, pointing at the local Lemonade server. The host defaults to `LEMONADE_HOST` or `http://127.0.0.1:13305`, and the API key to `LEMONADE_API_KEY` followed by `LEMONADE_ADMIN_API_KEY`.
+With no provider defined, the plugin creates the `lemonade` provider backed by `@opencode/ai/providers/openai-compatible`, pointing at the local Lemonade server. The host defaults to `LEMONADE_HOST` or `http://127.0.0.1:13305`, and the API key to `LEMONADE_API_KEY` followed by `LEMONADE_ADMIN_API_KEY`.
 
 ## Options
 
-Discovery options are passed as plugin options, in the `["name", { options }]`
-form of the `plugin` config key:
+Discovery options are passed as plugin options, in the v2 `plugins` object entry:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    [
-      "opencode-lemonade",
-      {
+  "plugins": [
+    {
+      "package": "opencode-lemonade",
+      "options": {
         "downloaded_only": true,
         "exclude_labels": ["embedding", "tts", "stt"],
         "overrides": {},
-        "small_model": "Qwen3-0.6B-GGUF",
       },
-    ],
+    },
   ],
 }
 ```
@@ -61,18 +68,21 @@ See the [options reference](../reference/options.md) for the full list,
 defaults, and filtering behavior.
 
 The examples below show the plugin options object; place it inside the
-`plugin` tuple as shown above.
+`options` key as shown above.
 
 ## Per-model overrides
 
-Discovered metadata merges under any per-model override, so a single field can be tuned without losing the rest. Overrides come from the plugin `models` and `overrides` options, or existing `provider.lemonade.models` entries, in that order of precedence. Nested objects merge; scalars and arrays replace.
+Discovered metadata merges under any per-model override, so a single field can be tuned without losing the rest. Overrides come from the plugin `models` and `overrides` options. Nested objects merge; scalars and arrays replace.
+
+Overrides use v2 `Model.Info` field names, so capabilities live under `capabilities` and the API model id is `modelID`:
 
 ```jsonc
 {
-  "models": {
+  "overrides": {
     "Qwen2.5-VL-7B-Instruct": {
       "name": "Qwen 2.5 VL (local)",
       "limit": { "output": 16384 },
+      "capabilities": { "tools": true },
     },
   },
 }
@@ -82,36 +92,20 @@ Discovered metadata merges under any per-model override, so a single field can b
 
 Non-trivial setups. Each example shows the plugin options object.
 
-### Capability overrides
+### Capability overrides and deployment names
 
 Auto-detected capabilities can be forced or cleared per model. For example,
-surface reasoning content from a reasoning model, and map a model id to an
+disable tools for a model that does not support them, and map a model id to an
 API-side deployment name:
 
 ```jsonc
 {
   "overrides": {
-    "DeepSeek-R1-0704": {
-      "reasoning": true,
-      "interleaved": { "field": "reasoning_content" },
-    },
     "user.My-Model": {
-      "id": "my-deployment-name",
-      "tool_call": false,
+      "modelID": "my-deployment-name",
+      "capabilities": { "tools": false },
     },
   },
-}
-```
-
-### Small model for utility tasks
-
-Route OpenCode utility tasks (session titles, compaction) to a small local
-model. Bare ids are prefixed with the provider id, so `Qwen3-0.6B-GGUF` sets
-`small_model` to `lemonade/Qwen3-0.6B-GGUF`:
-
-```jsonc
-{
-  "small_model": "Qwen3-0.6B-GGUF",
 }
 ```
 
@@ -170,5 +164,5 @@ and an entry keyed by the primary provider id merges into it:
 }
 ```
 
-This registers `provider.work` alongside the default `provider.lemonade`,
+This registers the `work` provider alongside the default `lemonade` provider,
 with models discovered from each server.

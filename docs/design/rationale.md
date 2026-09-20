@@ -9,7 +9,7 @@ status: active
 
 ## Discovery over static config
 
-OpenCode does not poll custom OpenAI-compatible endpoints. Registering models at startup through the config hook keeps the provider in sync with the server without manual editing.
+OpenCode does not poll custom OpenAI-compatible endpoints. Registering models at load through the provider transform keeps the provider in sync with the server without manual editing.
 
 ## Rich metadata from the catalog
 
@@ -29,6 +29,6 @@ Lemonade exposes its inference as an MCP server (`POST /mcp`, Streamable HTTP, t
 
 First, it is redundant in OpenCode. OpenCode consumes Lemonade models natively through the provider this plugin configures. Wiring the MCP endpoint into OpenCode as well would expose `lemonade_chat` as an agent tool on top of models the agent already picks from the model picker, adding a redundant path with no new capability. The gateway exists for clients that cannot use Lemonade's OpenAI-compatible API directly; OpenCode can.
 
-Second, it couples unrelated surfaces. Model discovery operates on a live catalog; an MCP registration is a single static endpoint with a different config key (`mcp` vs `provider`), transport, and failure mode. One plugin mutating both config trees makes each harder to reason about and test.
+Second, it couples unrelated surfaces. Model discovery operates on a live catalog; an MCP registration is a single static endpoint with a different config key (`mcp` vs `providers`), transport, and failure mode. One plugin mutating both config trees makes each harder to reason about and test.
 
 Third, it couples release cycles. With the package published to npm, bundling the gateway would pull every user into every MCP change and vice versa. Keeping the gateway documented rather than configured keeps the plugin scoped, the package small, and each surface free to evolve and release independently.

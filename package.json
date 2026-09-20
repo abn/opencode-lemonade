@@ -35,6 +35,9 @@
   "engines": {
     "node": ">=22.18.0"
   },
+  "dependencies": {
+    "@opencode/plugin": "^2.0.10"
+  },
   "devDependencies": {
     "@types/node": "^26.5.1",
     "prettier": "^3.4.0",

@@ -7,7 +7,7 @@ status: active
 
 # Overview
 
-`opencode-lemonade` is an OpenCode plugin that connects OpenCode to a Lemonade server. At startup it queries the server model catalog and registers every matching model as part of an OpenAI-compatible provider, so models, context limits, output limits, and vision capabilities appear in OpenCode without manual enumeration.
+`opencode-lemonade` is a v2 OpenCode plugin (`@opencode/plugin` 2.x) that connects OpenCode to a Lemonade server. At load it queries the server model catalog and registers every matching model as part of an OpenAI-compatible provider through the v2 provider transform, so models, context limits, output limits, and vision capabilities appear in OpenCode without manual enumeration.
 
 ## Why a plugin
 

@@ -1,4 +1,8 @@
+import { Model, Plugin, Provider } from "@opencode/plugin";
 import * as fs from "node:fs";
+
+export const LEMONADE_PROVIDER_PACKAGE =
+  "@opencode/ai/providers/openai-compatible";
 
 export interface LemonadeDiscoveryOptions {
   name?: string;
@@ -18,7 +22,6 @@ export interface LemonadeDiscoveryOptions {
   models?: Record<string, Record<string, unknown>>;
   overrides?: Record<string, Record<string, unknown>>;
   headers?: Record<string, string>;
-  small_model?: string;
   servers?: Record<string, LemonadeDiscoveryOptions>;
 }
 
@@ -35,6 +38,20 @@ export interface LemonadeModel {
     ctx_size?: number;
     [key: string]: unknown;
   };
+}
+
+interface DiscoveredServer {
+  id: string;
+  info: Provider.Info;
+  models: Model.Info[];
+}
+
+export interface ExistingProvider {
+  id: string;
+  name?: string;
+  activation?: string;
+  package?: string;
+  settings?: Record<string, unknown>;
 }
 
 function isObject(val: unknown): val is Record<string, unknown> {
@@ -157,198 +174,199 @@ export function filterModel(
   return true;
 }
 
-export const LemonadeDiscoveryPlugin = async (
-  _input?: unknown,
-  options?: LemonadeDiscoveryOptions,
-) => {
-  return {
-    config: async (config: {
-      provider?: Record<
-        string,
-        {
-          name?: string;
-          npm?: string;
-          options?: Record<string, unknown>;
-          models?: Record<string, unknown>;
-          [key: string]: unknown;
-        }
-      >;
-      [key: string]: unknown;
-    }) => {
-      const opts: LemonadeDiscoveryOptions = options ?? {};
-      const providerId = opts.provider_id ?? "lemonade";
+export function resolveModelInfo(
+  providerID: Provider.ID,
+  model: LemonadeModel,
+  opts: LemonadeDiscoveryOptions,
+  override?: Record<string, unknown>,
+): Model.Info {
+  const rawContext =
+    model.recipe_options?.ctx_size || model.context_length || 32768;
+  const contextLimit = opts.max_context_limit
+    ? Math.min(rawContext, opts.max_context_limit)
+    : rawContext;
 
-      if (!config.provider) {
-        config.provider = {};
-      }
-      const provider = config.provider;
+  const outputLimit =
+    model.max_output_tokens || opts.default_output_limit || 8192;
 
-      const registerServer = async (
-        id: string,
-        serverOpts: LemonadeDiscoveryOptions,
-      ) => {
-        const mergedOpts: LemonadeDiscoveryOptions = {
-          downloaded_only: true,
-          exclude_labels: ["embedding", "tts", "stt"],
-          ...opts,
-          ...serverOpts,
-        };
+  const isVision =
+    model.labels?.includes("vision") ||
+    model.labels?.includes("vlm") ||
+    model.id.toLowerCase().includes("vl");
 
-        const existingProvider = provider[id];
-        const providerOpts = (existingProvider?.options ?? {}) as Record<
-          string,
-          unknown
-        >;
+  const isToolCalling = model.labels?.includes("tool-calling") ?? false;
 
-        const host =
-          resolveValue(mergedOpts.host) ||
-          resolveValue(providerOpts.baseURL as string | undefined) ||
-          process.env.LEMONADE_HOST ||
-          "http://127.0.0.1:13305";
-
-        const cleanHost = host.replace(/\/+$/, "").replace(/\/v1$/, "");
-
-        const apiKey =
-          resolveValue(mergedOpts.apiKey) ||
-          resolveValue(providerOpts.apiKey as string | undefined) ||
-          process.env.LEMONADE_API_KEY ||
-          process.env.LEMONADE_ADMIN_API_KEY;
-
-        const timeoutMs = mergedOpts.timeout_ms ?? 3000;
-        const defaultOutputLimit = mergedOpts.default_output_limit ?? 8192;
-
-        let discoveredModels: LemonadeModel[] = [];
-
-        try {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-          const requestHeaders: Record<string, string> = {
-            ...(mergedOpts.headers ?? {}),
-          };
-          if (apiKey && !requestHeaders["Authorization"]) {
-            requestHeaders["Authorization"] = `Bearer ${apiKey}`;
-          }
-
-          try {
-            const showAll = mergedOpts.downloaded_only === false;
-            const modelsUrl = `${cleanHost}/v1/models${
-              showAll ? "?show_all=true" : ""
-            }`;
-            const res = await fetch(modelsUrl, {
-              headers: requestHeaders,
-              signal: controller.signal,
-            });
-
-            if (res.ok) {
-              const data = (await res.json()) as { data?: LemonadeModel[] };
-              if (Array.isArray(data.data)) {
-                discoveredModels = data.data.filter((m) =>
-                  filterModel(m, mergedOpts),
-                );
-              }
-            }
-          } finally {
-            clearTimeout(timer);
-          }
-        } catch {
-          // Graceful offline fallback
-        }
-
-        if (!provider[id]) {
-          const providerHeaders = { ...(mergedOpts.headers ?? {}) };
-          provider[id] = {
-            name:
-              mergedOpts.name ??
-              (id === providerId ? "Lemonade" : `Lemonade (${id})`),
-            npm: "@ai-sdk/openai-compatible",
-            options: {
-              baseURL: `${cleanHost}/v1`,
-              ...(apiKey ? { apiKey } : {}),
-              ...(Object.keys(providerHeaders).length > 0
-                ? { headers: providerHeaders }
-                : {}),
-            },
-            models: {},
-          };
-        }
-
-        const prov = provider[id];
-        if (!prov.models) {
-          prov.models = {};
-        }
-
-        const modelOverrides = {
-          ...(mergedOpts.models ?? {}),
-          ...(mergedOpts.overrides ?? {}),
-        };
-
-        for (const model of discoveredModels) {
-          const rawCtx =
-            model.recipe_options?.ctx_size || model.context_length || 32768;
-          const ctxLimit = mergedOpts.max_context_limit
-            ? Math.min(rawCtx, mergedOpts.max_context_limit)
-            : rawCtx;
-
-          const outputLimit = model.max_output_tokens || defaultOutputLimit;
-
-          const isVision =
-            model.labels?.includes("vision") ||
-            model.labels?.includes("vlm") ||
-            model.id.toLowerCase().includes("vl");
-
-          const isToolCalling = model.labels?.includes("tool-calling") ?? false;
-          const isReasoning = model.labels?.includes("reasoning") ?? false;
-
-          const baseEntry: Record<string, unknown> = {
-            name: model.name || model.id,
-            limit: {
-              context: ctxLimit,
-              output: outputLimit,
-            },
-            ...(isVision
-              ? {
-                  attachment: true,
-                  modalities: {
-                    input: ["text", "image"],
-                    output: ["text"],
-                  },
-                }
-              : {}),
-            ...(isToolCalling ? { tool_call: true } : {}),
-            ...(isReasoning ? { reasoning: true } : {}),
-          };
-
-          const specificOverride = modelOverrides[model.id];
-          const existingEntry = prov.models[model.id] as
-            Record<string, unknown> | undefined;
-
-          const mergedEntry = deepMerge(
-            deepMerge(baseEntry, specificOverride),
-            existingEntry,
-          );
-
-          prov.models[model.id] = mergedEntry;
-        }
-      };
-
-      await registerServer(providerId, opts.servers?.[providerId] ?? {});
-
-      for (const [id, serverOpts] of Object.entries(opts.servers ?? {})) {
-        if (id === providerId) continue;
-        await registerServer(id, serverOpts);
-      }
-
-      if (opts.small_model) {
-        const smallModel = resolveValue(opts.small_model);
-        if (smallModel) {
-          config.small_model = smallModel.includes("/")
-            ? smallModel
-            : `${providerId}/${smallModel}`;
-        }
-      }
+  const base: Model.Info = {
+    ...Model.Info.default(providerID, Model.ID.make(model.id)),
+    name: model.name || model.id,
+    limit: { context: contextLimit, output: outputLimit },
+    capabilities: {
+      tools: isToolCalling,
+      input: isVision ? ["text", "image"] : ["text"],
+      output: ["text"],
     },
   };
-};
+
+  return deepMerge(
+    base as unknown as Record<string, unknown>,
+    override,
+  ) as unknown as Model.Info;
+}
+
+type ProviderLookup = (id: string) => Promise<ExistingProvider | undefined>;
+
+async function discoverServer(
+  lookup: ProviderLookup,
+  primaryId: string,
+  id: string,
+  serverOpts: LemonadeDiscoveryOptions,
+  topOpts: LemonadeDiscoveryOptions,
+): Promise<DiscoveredServer> {
+  const providerID = Provider.ID.make(id);
+
+  const mergedOpts: LemonadeDiscoveryOptions = {
+    downloaded_only: true,
+    exclude_labels: ["embedding", "tts", "stt"],
+    ...topOpts,
+    ...serverOpts,
+  };
+
+  const existing = await lookup(id);
+  const providerSettings = (existing?.settings ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  const host =
+    resolveValue(mergedOpts.host) ||
+    resolveValue(providerSettings.baseURL as string | undefined) ||
+    process.env.LEMONADE_HOST ||
+    "http://127.0.0.1:13305";
+
+  const cleanHost = host.replace(/\/+$/, "").replace(/\/v1$/, "");
+
+  const apiKey =
+    resolveValue(mergedOpts.apiKey) ||
+    resolveValue(providerSettings.apiKey as string | undefined) ||
+    process.env.LEMONADE_API_KEY ||
+    process.env.LEMONADE_ADMIN_API_KEY;
+
+  const timeoutMs = mergedOpts.timeout_ms ?? 3000;
+
+  let discoveredModels: LemonadeModel[] = [];
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const requestHeaders: Record<string, string> = {
+      ...(mergedOpts.headers ?? {}),
+    };
+    if (apiKey && !requestHeaders["Authorization"]) {
+      requestHeaders["Authorization"] = `Bearer ${apiKey}`;
+    }
+
+    try {
+      const showAll = mergedOpts.downloaded_only === false;
+      const modelsUrl = `${cleanHost}/v1/models${
+        showAll ? "?show_all=true" : ""
+      }`;
+      const res = await fetch(modelsUrl, {
+        headers: requestHeaders,
+        signal: controller.signal,
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as { data?: LemonadeModel[] };
+        if (Array.isArray(data.data)) {
+          discoveredModels = data.data.filter((m) =>
+            filterModel(m, mergedOpts),
+          );
+        }
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    // Graceful offline fallback
+  }
+
+  const modelOverrides = {
+    ...(mergedOpts.models ?? {}),
+    ...(mergedOpts.overrides ?? {}),
+  };
+
+  const models = discoveredModels.map((model) =>
+    resolveModelInfo(providerID, model, mergedOpts, modelOverrides[model.id]),
+  );
+
+  const info: Provider.Info = existing
+    ? (existing as unknown as Provider.Info)
+    : ({
+        ...Provider.Info.empty(providerID),
+        name:
+          mergedOpts.name ??
+          (id === primaryId ? "Lemonade" : `Lemonade (${id})`),
+        activation: "enabled",
+        package: LEMONADE_PROVIDER_PACKAGE,
+        settings: {
+          baseURL: `${cleanHost}/v1`,
+          ...(apiKey ? { apiKey } : {}),
+          ...(Object.keys(mergedOpts.headers ?? {}).length > 0
+            ? { headers: mergedOpts.headers }
+            : {}),
+        },
+      } as Provider.Info);
+
+  return { id, info, models };
+}
+
+export const LemonadeDiscoveryPlugin = Plugin.define({
+  id: "opencode-lemonade",
+  async setup(ctx) {
+    const opts = (ctx.options ?? {}) as LemonadeDiscoveryOptions;
+    const primaryId = opts.provider_id ?? "lemonade";
+
+    const lookup: ProviderLookup = async (id) => {
+      try {
+        const result = await ctx.provider.get({ providerID: id });
+        return result?.data as unknown as ExistingProvider | undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
+    const serverIds = [
+      primaryId,
+      ...Object.keys(opts.servers ?? {}).filter((id) => id !== primaryId),
+    ];
+
+    const discovered: DiscoveredServer[] = [];
+    for (const id of serverIds) {
+      const serverOpts =
+        id === primaryId
+          ? (opts.servers?.[primaryId] ?? {})
+          : opts.servers![id];
+      discovered.push(
+        await discoverServer(lookup, primaryId, id, serverOpts, opts),
+      );
+    }
+
+    await ctx.provider.transform((editor) => {
+      for (const server of discovered) {
+        const record = editor.get(server.id);
+        if (record) {
+          const merged = new Map<string, Model.Info>(record.models);
+          for (const model of server.models) {
+            if (!merged.has(model.id)) merged.set(model.id, model);
+          }
+          editor.models.set(server.id, [...merged.values()]);
+        } else {
+          editor.add({ info: server.info, models: server.models });
+        }
+      }
+    });
+  },
+});
 
 export default LemonadeDiscoveryPlugin;
