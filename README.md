@@ -7,6 +7,16 @@ Dynamic model discovery and zero-config provider initialization for [Lemonade](h
 
 This is a v2 OpenCode plugin (`@opencode/plugin` 2.x). It registers Lemonade through the v2 `setup(ctx)` lifecycle and `ctx.provider.transform`, and does not run on OpenCode 1.x.
 
+On OpenCode 1.x, pin the last v1 release, `opencode-lemonade@0.3.0`:
+
+```jsonc
+{
+  "plugin": ["opencode-lemonade@0.3.0"],
+}
+```
+
+That line uses the v1 `plugin` config key and the v1 plugin implementation. Version 1.0.0 and later target OpenCode 2.x only.
+
 ## Overview
 
 This plugin connects OpenCode to a Lemonade server, discovering all available or downloaded models at startup and registering them through the v2 plugin provider transform. It removes the need to manually enumerate models, context sizes, output token limits, and vision modalities in your `opencode.json` / `opencode.jsonc`.
