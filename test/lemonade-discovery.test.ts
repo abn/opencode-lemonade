@@ -4,13 +4,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mock, test } from "node:test";
 
+import { Model, Provider } from "@opencode/plugin";
+
 import LemonadeDiscoveryPlugin, {
   deepMerge,
   filterModel,
   matchesPattern,
+  resolveModelInfo,
   resolveValue,
   type LemonadeModel,
 } from "../src/lemonade-discovery.ts";
+
+type PluginContext = Parameters<typeof LemonadeDiscoveryPlugin.setup>[0];
+
+interface ProviderRecord {
+  provider: Provider.Info;
+  models: Map<string, Model.Info>;
+}
 
 function model(overrides: Partial<LemonadeModel> = {}): LemonadeModel {
   return {
@@ -24,23 +34,90 @@ function model(overrides: Partial<LemonadeModel> = {}): LemonadeModel {
   };
 }
 
-interface ProviderEntry {
-  name?: string;
-  npm?: string;
-  options?: Record<string, unknown>;
-  models?: Record<string, unknown>;
-  [key: string]: unknown;
+function emptyProvider(id: string): Provider.Info {
+  return {
+    ...Provider.Info.empty(Provider.ID.make(id)),
+    package: "@opencode/ai/providers/openai-compatible",
+  };
 }
 
-interface PluginConfig {
-  provider: Record<string, ProviderEntry>;
-  [key: string]: unknown;
+function makeEditor(records: Map<string, ProviderRecord>) {
+  return {
+    list: () => [...records.values()],
+    get: (id: string) => records.get(id),
+    add: ({
+      info,
+      models,
+    }: {
+      info: Provider.Info;
+      models: readonly Model.Info[];
+    }) => {
+      records.set(info.id, {
+        provider: info,
+        models: new Map(models.map((m) => [m.id, m])),
+      });
+    },
+    update: (id: string, update: (provider: Provider.Info) => void) => {
+      const record = records.get(id);
+      if (record) update(record.provider);
+    },
+    remove: (id: string) => {
+      records.delete(id);
+    },
+    models: {
+      set: (id: string, models: readonly Model.Info[]) => {
+        const record = records.get(id);
+        if (record) {
+          record.models = new Map(models.map((m) => [m.id, m]));
+        }
+      },
+      update: (
+        id: string,
+        modelID: string,
+        update: (model: Model.Info) => void,
+      ) => {
+        const entry = records.get(id)?.models.get(modelID);
+        if (entry) update(entry);
+      },
+      remove: (id: string, modelID: string) => {
+        records.get(id)?.models.delete(modelID);
+      },
+    },
+  };
 }
 
-function modelEntry(config: PluginConfig, id: string): Record<string, any> {
-  const entry = config.provider.lemonade?.models?.[id];
+async function runPlugin(
+  options: Record<string, unknown> = {},
+  existing: Map<string, ProviderRecord> = new Map(),
+): Promise<Map<string, ProviderRecord>> {
+  const editor = makeEditor(existing);
+  const ctx = {
+    options,
+    provider: {
+      async get({ providerID }: { providerID: string }) {
+        const record = existing.get(providerID);
+        return record ? { data: record.provider } : undefined;
+      },
+      async transform(
+        callback: (editor: ReturnType<typeof makeEditor>) => void,
+      ) {
+        callback(editor);
+        return { dispose: async () => {} };
+      },
+    },
+  };
+
+  await LemonadeDiscoveryPlugin.setup(ctx as unknown as PluginContext);
+  return existing;
+}
+
+function modelEntry(
+  records: Map<string, ProviderRecord>,
+  id: string,
+): Model.Info {
+  const entry = records.get("lemonade")?.models.get(id);
   assert.ok(entry, `model ${id} not registered`);
-  return entry as Record<string, unknown>;
+  return entry;
 }
 
 test("matchesPattern: glob wildcards", () => {
@@ -170,6 +247,63 @@ test("filterModel: id include/exclude patterns", () => {
   );
 });
 
+test("resolveModelInfo: maps labels to v2 capabilities", () => {
+  const providerID = Provider.ID.make("lemonade");
+
+  const vision = resolveModelInfo(providerID, model(), {});
+  assert.equal(vision.name, "Qwen2.5 VL 7B");
+  assert.deepEqual(vision.capabilities, {
+    tools: false,
+    input: ["text", "image"],
+    output: ["text"],
+  });
+  assert.deepEqual(vision.limit, { context: 128000, output: 8192 });
+
+  const capable = resolveModelInfo(
+    providerID,
+    model({ id: "DeepSeek-R1", labels: ["tool-calling"] }),
+    {},
+  );
+  assert.deepEqual(capable.capabilities, {
+    tools: true,
+    input: ["text"],
+    output: ["text"],
+  });
+
+  const plain = resolveModelInfo(
+    providerID,
+    model({ id: "plain", labels: [] }),
+    {},
+  );
+  assert.deepEqual(plain.capabilities, {
+    tools: false,
+    input: ["text"],
+    output: ["text"],
+  });
+});
+
+test("resolveModelInfo: override deep-merges over discovered metadata", () => {
+  const providerID = Provider.ID.make("lemonade");
+  const info = resolveModelInfo(
+    providerID,
+    model(),
+    {},
+    {
+      name: "Custom",
+      limit: { output: 4096 },
+      capabilities: { tools: true },
+    },
+  );
+
+  assert.equal(info.name, "Custom");
+  assert.deepEqual(info.limit, { context: 128000, output: 4096 });
+  assert.deepEqual(info.capabilities, {
+    tools: true,
+    input: ["text", "image"],
+    output: ["text"],
+  });
+});
+
 test("plugin: registers provider and models from fetch", async () => {
   const response = {
     data: [model(), model({ id: "embed", labels: ["embedding"] })],
@@ -180,16 +314,16 @@ test("plugin: registers provider and models from fetch", async () => {
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    assert.ok(config.provider.lemonade);
-    assert.equal(config.provider.lemonade.npm, "@ai-sdk/openai-compatible");
-    const options = config.provider.lemonade.options as Record<string, unknown>;
-    assert.equal(options.baseURL, "http://127.0.0.1:13305/v1");
-    assert.ok(modelEntry(config, "Qwen2.5-VL-7B-Instruct"));
-    assert.equal(config.provider.lemonade.models?.["embed"], undefined);
+    const records = await runPlugin();
+    const provider = records.get("lemonade")?.provider;
+    assert.ok(provider);
+    assert.equal(provider.name, "Lemonade");
+    assert.equal(provider.package, "@opencode/ai/providers/openai-compatible");
+    assert.equal(provider.activation, "enabled");
+    const settings = provider.settings as Record<string, unknown>;
+    assert.equal(settings.baseURL, "http://127.0.0.1:13305/v1");
+    assert.ok(modelEntry(records, "Qwen2.5-VL-7B-Instruct"));
+    assert.equal(records.get("lemonade")?.models.get("embed"), undefined);
     assert.equal(
       fetchMock.mock.calls[0].arguments[0],
       "http://127.0.0.1:13305/v1/models",
@@ -199,23 +333,17 @@ test("plugin: registers provider and models from fetch", async () => {
   }
 });
 
-test("plugin: vision model gets attachment and modalities", async () => {
+test("plugin: vision model gets image input modality", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({ data: [model()] }),
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    const entry = modelEntry(config, "Qwen2.5-VL-7B-Instruct");
-    assert.equal(entry.attachment, true);
-    assert.deepEqual(entry.modalities, {
-      input: ["text", "image"],
-      output: ["text"],
-    });
+    const records = await runPlugin();
+    const entry = modelEntry(records, "Qwen2.5-VL-7B-Instruct");
+    assert.deepEqual(entry.capabilities.input, ["text", "image"]);
+    assert.deepEqual(entry.capabilities.output, ["text"]);
     assert.equal(entry.limit.context, 128000);
     assert.equal(entry.limit.output, 8192);
   } finally {
@@ -223,31 +351,24 @@ test("plugin: vision model gets attachment and modalities", async () => {
   }
 });
 
-test("plugin: tool-calling and reasoning labels map to capabilities", async () => {
+test("plugin: tool-calling label enables tools capability", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({
-      data: [
-        model({ id: "DeepSeek-R1", labels: ["tool-calling", "reasoning"] }),
-      ],
+      data: [model({ id: "DeepSeek-R1", labels: ["tool-calling"] })],
     }),
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    const entry = modelEntry(config, "DeepSeek-R1");
-    assert.equal(entry.tool_call, true);
-    assert.equal(entry.reasoning, true);
-    assert.equal(entry.attachment, undefined);
+    const records = await runPlugin();
+    const entry = modelEntry(records, "DeepSeek-R1");
+    assert.equal(entry.capabilities.tools, true);
   } finally {
     fetchMock.mock.restore();
   }
 });
 
-test("plugin: models without capability labels stay bare", async () => {
+test("plugin: models without capability labels expose no tools", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({
@@ -256,14 +377,10 @@ test("plugin: models without capability labels stay bare", async () => {
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    const entry = modelEntry(config, "plain");
-    assert.equal(entry.tool_call, undefined);
-    assert.equal(entry.reasoning, undefined);
-    assert.equal(entry.attachment, undefined);
+    const records = await runPlugin();
+    const entry = modelEntry(records, "plain");
+    assert.equal(entry.capabilities.tools, false);
+    assert.deepEqual(entry.capabilities.input, ["text"]);
   } finally {
     fetchMock.mock.restore();
   }
@@ -276,17 +393,14 @@ test("plugin: overrides can clear auto-detected capabilities", async () => {
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    const records = await runPlugin({
       overrides: {
-        "Qwen2.5-VL-7B-Instruct": { reasoning: false },
+        "Qwen2.5-VL-7B-Instruct": { capabilities: { tools: true } },
       },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    const entry = modelEntry(config, "Qwen2.5-VL-7B-Instruct");
-    assert.equal(entry.reasoning, false);
-    assert.equal(entry.attachment, true);
+    const entry = modelEntry(records, "Qwen2.5-VL-7B-Instruct");
+    assert.equal(entry.capabilities.tools, true);
+    assert.deepEqual(entry.capabilities.input, ["text", "image"]);
   } finally {
     fetchMock.mock.restore();
   }
@@ -298,38 +412,36 @@ test("plugin: offline server falls back gracefully", async () => {
   });
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    assert.ok(config.provider.lemonade);
-    assert.deepEqual(config.provider.lemonade.models, {});
+    const records = await runPlugin();
+    assert.ok(records.get("lemonade")?.provider);
+    assert.equal(records.get("lemonade")?.models.size, 0);
   } finally {
     fetchMock.mock.restore();
   }
 });
 
-test("plugin: derives host and api key from provider options and env", async () => {
+test("plugin: derives host and api key from provider settings and env", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({ data: [] }),
   }));
   process.env.LEMONADE_TEST_HOST = "http://10.0.0.1:9000";
+  process.env.LEMONADE_TEST_ADMIN_KEY = "admin-secret";
+
+  const existing = new Map<string, ProviderRecord>();
+  existing.set("lemonade", {
+    provider: {
+      ...emptyProvider("lemonade"),
+      settings: {
+        baseURL: "{env:LEMONADE_TEST_HOST}/v1",
+        apiKey: "{env:LEMONADE_TEST_ADMIN_KEY}",
+      },
+    },
+    models: new Map(),
+  });
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = {
-      provider: {
-        lemonade: {
-          options: {
-            baseURL: "{env:LEMONADE_TEST_HOST}/v1",
-            apiKey: "{env:LEMONADE_TEST_ADMIN_KEY}",
-          },
-        },
-      },
-    };
-    process.env.LEMONADE_TEST_ADMIN_KEY = "admin-secret";
-    await plugin.config(config);
+    await runPlugin({}, existing);
 
     const call = fetchMock.mock.calls[0];
     assert.ok(call);
@@ -351,11 +463,7 @@ test("plugin: requests show_all only when downloaded_only is false", async () =>
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
-      downloaded_only: false,
-    });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
+    await runPlugin({ downloaded_only: false });
     assert.equal(
       fetchMock.mock.calls[0].arguments[0],
       "http://127.0.0.1:13305/v1/models?show_all=true",
@@ -365,7 +473,7 @@ test("plugin: requests show_all only when downloaded_only is false", async () =>
   }
 });
 
-test("plugin: omits apiKey from provider options when none resolves", async () => {
+test("plugin: omits apiKey from provider settings when none resolves", async () => {
   const savedAdmin = process.env.LEMONADE_ADMIN_API_KEY;
   const savedKey = process.env.LEMONADE_API_KEY;
   delete process.env.LEMONADE_ADMIN_API_KEY;
@@ -376,13 +484,13 @@ test("plugin: omits apiKey from provider options when none resolves", async () =
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    const options = config.provider.lemonade.options as Record<string, unknown>;
-    assert.equal(options.apiKey, undefined);
-    assert.equal(options.baseURL, "http://127.0.0.1:13305/v1");
+    const records = await runPlugin();
+    const settings = records.get("lemonade")?.provider.settings as Record<
+      string,
+      unknown
+    >;
+    assert.equal(settings.apiKey, undefined);
+    assert.equal(settings.baseURL, "http://127.0.0.1:13305/v1");
   } finally {
     fetchMock.mock.restore();
     if (savedAdmin !== undefined) {
@@ -394,69 +502,30 @@ test("plugin: omits apiKey from provider options when none resolves", async () =
   }
 });
 
-test("plugin: discovery headers apply to fetch and provider options", async () => {
+test("plugin: discovery headers apply to fetch and provider settings", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({ data: [] }),
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    const records = await runPlugin({
       headers: { "X-Gateway-Key": "secret" },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
 
     const call = fetchMock.mock.calls[0];
     const init = call.arguments[1] as
       { headers?: Record<string, string> } | undefined;
     assert.equal(init?.headers?.["X-Gateway-Key"], "secret");
 
-    const options = config.provider.lemonade.options as Record<string, unknown>;
-    const headers = options.headers as Record<string, string>;
+    const settings = records.get("lemonade")?.provider.settings as Record<
+      string,
+      unknown
+    >;
+    const headers = settings.headers as Record<string, string>;
     assert.equal(headers["X-Gateway-Key"], "secret");
   } finally {
     fetchMock.mock.restore();
-  }
-});
-
-test("plugin: small_model option prefixes bare model ids", async () => {
-  const fetchMock = mock.method(globalThis, "fetch", async () => ({
-    ok: true,
-    json: async () => ({ data: [] }),
-  }));
-
-  try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
-      small_model: "Qwen3-0.6B-GGUF",
-    });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    assert.equal(config.small_model, "lemonade/Qwen3-0.6B-GGUF");
-  } finally {
-    fetchMock.mock.restore();
-  }
-});
-
-test("plugin: small_model keeps full references and env templates", async () => {
-  const fetchMock = mock.method(globalThis, "fetch", async () => ({
-    ok: true,
-    json: async () => ({ data: [] }),
-  }));
-  process.env.LEMONADE_TEST_SMALL = "other/Qwen3-0.6B-GGUF";
-
-  try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
-      small_model: "{env:LEMONADE_TEST_SMALL}",
-    });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    assert.equal(config.small_model, "other/Qwen3-0.6B-GGUF");
-  } finally {
-    fetchMock.mock.restore();
-    delete process.env.LEMONADE_TEST_SMALL;
   }
 });
 
@@ -469,13 +538,8 @@ test("plugin: clamps context limit with max_context_limit", async () => {
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
-      max_context_limit: 32768,
-    });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
-
-    assert.equal(modelEntry(config, "big").limit.context, 32768);
+    const records = await runPlugin({ max_context_limit: 32768 });
+    assert.equal(modelEntry(records, "big").limit.context, 32768);
   } finally {
     fetchMock.mock.restore();
   }
@@ -506,7 +570,7 @@ test("deepMerge: no source returns target unchanged", () => {
   assert.deepEqual(deepMerge(target, {}), { a: 1 });
 });
 
-test("plugin: merges pre-configured entry over discovered model", async () => {
+test("plugin: keeps existing provider models over discovered ones", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({
@@ -516,36 +580,40 @@ test("plugin: merges pre-configured entry over discovered model", async () => {
     }),
   }));
 
-  try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
-      max_context_limit: 2048,
-    });
-    const config: PluginConfig = {
-      provider: {
-        lemonade: {
-          models: { small: { name: "custom" } },
+  const existing = new Map<string, ProviderRecord>();
+  existing.set("lemonade", {
+    provider: emptyProvider("lemonade"),
+    models: new Map([
+      [
+        "small",
+        {
+          ...Model.Info.default(
+            Provider.ID.make("lemonade"),
+            Model.ID.make("small"),
+          ),
+          name: "custom",
         },
-      },
-    };
-    await plugin.config(config);
+      ],
+    ]),
+  });
 
-    assert.deepEqual(modelEntry(config, "small"), {
-      name: "custom",
-      limit: { context: 2048, output: 8192 },
-    });
+  try {
+    await runPlugin({ max_context_limit: 2048 }, existing);
+    const entry = existing.get("lemonade")?.models.get("small");
+    assert.equal(entry?.name, "custom");
   } finally {
     fetchMock.mock.restore();
   }
 });
 
-test("plugin: per-model override via discovery models option", async () => {
+test("plugin: per-model override via models option", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({ data: [model()] }),
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    const records = await runPlugin({
       models: {
         "Qwen2.5-VL-7B-Instruct": {
           name: "Qwen 7B (custom)",
@@ -553,40 +621,36 @@ test("plugin: per-model override via discovery models option", async () => {
         },
       },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
 
-    const entry = modelEntry(config, "Qwen2.5-VL-7B-Instruct");
+    const entry = modelEntry(records, "Qwen2.5-VL-7B-Instruct");
     assert.equal(entry.name, "Qwen 7B (custom)");
     assert.equal(entry.limit.output, 4096);
     assert.equal(entry.limit.context, 128000);
-    assert.equal(entry.attachment, true);
+    assert.deepEqual(entry.capabilities.input, ["text", "image"]);
   } finally {
     fetchMock.mock.restore();
   }
 });
 
-test("plugin: per-model override via discovery overrides option", async () => {
+test("plugin: per-model override via overrides option", async () => {
   const fetchMock = mock.method(globalThis, "fetch", async () => ({
     ok: true,
     json: async () => ({ data: [model()] }),
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    const records = await runPlugin({
       overrides: {
         "Qwen2.5-VL-7B-Instruct": {
           name: "Renamed",
-          attachment: false,
+          modelID: "deployment-name",
         },
       },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
 
-    const entry = modelEntry(config, "Qwen2.5-VL-7B-Instruct");
+    const entry = modelEntry(records, "Qwen2.5-VL-7B-Instruct");
     assert.equal(entry.name, "Renamed");
-    assert.equal(entry.attachment, false);
+    assert.equal(entry.modelID, "deployment-name");
     assert.equal(entry.limit.context, 128000);
   } finally {
     fetchMock.mock.restore();
@@ -604,9 +668,7 @@ test("plugin: prefers LEMONADE_API_KEY over LEMONADE_ADMIN_API_KEY", async () =>
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin();
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
+    await runPlugin();
 
     const init = fetchMock.mock.calls[0].arguments[1] as
       { headers?: Record<string, string> } | undefined;
@@ -634,18 +696,16 @@ test("plugin: registers additional named servers", async () => {
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    const records = await runPlugin({
       servers: {
         work: { host: "http://10.0.0.1:9000", apiKey: "work-key" },
       },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
 
-    assert.equal(config.provider.work.name, "Lemonade (work)");
-    assert.equal(config.provider.lemonade.name, "Lemonade");
-    assert.ok(config.provider.work.models?.["remote-model"]);
-    assert.ok(config.provider.lemonade.models?.["local-model"]);
+    assert.equal(records.get("work")?.provider.name, "Lemonade (work)");
+    assert.equal(records.get("lemonade")?.provider.name, "Lemonade");
+    assert.ok(records.get("work")?.models.get("remote-model"));
+    assert.ok(records.get("lemonade")?.models.get("local-model"));
 
     const urls = fetchMock.mock.calls.map((c) => c.arguments[0]);
     assert.ok(urls.includes("http://10.0.0.1:9000/v1/models"));
@@ -662,15 +722,13 @@ test("plugin: servers entry matching provider id merges into primary", async () 
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    const records = await runPlugin({
       servers: {
         lemonade: { name: "Primary Lemonade" },
       },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
 
-    assert.equal(config.provider.lemonade.name, "Primary Lemonade");
+    assert.equal(records.get("lemonade")?.provider.name, "Primary Lemonade");
   } finally {
     fetchMock.mock.restore();
   }
@@ -683,14 +741,12 @@ test("plugin: named servers inherit top-level options with overrides", async () 
   }));
 
   try {
-    const plugin = await LemonadeDiscoveryPlugin(undefined, {
+    await runPlugin({
       downloaded_only: false,
       servers: {
         work: { downloaded_only: true },
       },
     });
-    const config: PluginConfig = { provider: {} };
-    await plugin.config(config);
 
     const urls = fetchMock.mock.calls.map((c) => c.arguments[0]);
     assert.ok(urls.includes("http://127.0.0.1:13305/v1/models?show_all=true"));

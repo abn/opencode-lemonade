@@ -7,8 +7,8 @@ status: active
 
 # Options reference
 
-Options are passed as plugin options, using the `["name", { options }]` form of
-the `plugin` config key.
+Options are passed as plugin options, using the `{ "package", "options" }`
+object form of the `plugins` config key.
 
 | Option                 | Type                               | Default                                         | Description                                                                                                                                            |
 | :--------------------- | :--------------------------------- | :---------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -28,8 +28,7 @@ the `plugin` config key.
 | `name`                 | `string`                           | `"Lemonade"`                                    | Provider display name; named servers default to `Lemonade (<id>)`.                                                                                     |
 | `models`               | `Record<string, object>`           | `undefined`                                     | Per-model overrides keyed by model id, deep-merged over discovered metadata.                                                                           |
 | `overrides`            | `Record<string, object>`           | `undefined`                                     | Same shape as `models`; wins when both set the same model.                                                                                             |
-| `headers`              | `Record<string, string>`           | `undefined`                                     | Custom headers sent on discovery and copied into the provider options.                                                                                 |
-| `small_model`          | `string`                           | `undefined`                                     | Model reference for OpenCode utility tasks; bare ids are prefixed with the provider id.                                                                |
+| `headers`              | `Record<string, string>`           | `undefined`                                     | Custom headers sent on discovery and copied into the provider settings.                                                                                |
 | `servers`              | `Record<string, object>`           | `undefined`                                     | Additional named Lemonade servers to register as providers; each entry is a full options object merged over the top-level options.                     |
 
 ## Filtering behavior
@@ -43,12 +42,18 @@ Models are kept when every active filter passes:
 
 ## Per-model overrides
 
-Discovered metadata can be tuned per model id through three layers, merged in
+Discovered metadata can be tuned per model id through two layers, merged in
 increasing precedence:
 
 1. Discovered metadata from the server catalog.
 2. `models` and `overrides` entries in the plugin options.
-3. Existing entries under `provider.<id>.models` in the OpenCode config.
+
+Overrides use v2 `Model.Info` field names, the same shape OpenCode stores for a
+model: `name`, `limit.context`, `limit.output`, `capabilities.tools`,
+`capabilities.input`, `capabilities.output`, `modelID`, `status`, and so on.
+`modelID` maps the entry to a different API model id, for example an
+Azure-style deployment name where the server model id differs from the id sent
+in requests.
 
 Merging is recursive: nested objects merge field by field, while scalar values
 and arrays replace the discovered value. `undefined` values are ignored, so an
@@ -56,6 +61,9 @@ override can never clear a field by setting it to `undefined`. This lets a
 config tune a single field, such as `name` or `limit.output`, without losing
 the rest of the discovered entry.
 
-The `id` field maps the entry to a different API model id, for example an
-Azure-style deployment name where the server model id differs from the id sent
-in requests.
+When a provider already exists in the OpenCode config, the plugin preserves its
+settings and any models it defines. A discovered model whose id is already
+defined by the provider is left untouched; only new ids are added.
+
+The v2 model schema has no `reasoning` capability, so the Lemonade `reasoning`
+label is no longer mapped and cannot be set through overrides.
