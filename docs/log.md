@@ -15,6 +15,7 @@ status: active
 - Recorded provider-preservation behavior: an existing configured provider keeps its settings and defined models, and only new discovered model ids are added.
 - Refreshed the README install and configuration instructions for v2 (`plugins` config key, `opencode plugin add`, `.opencode/plugins/` discovery).
 - Added a v1 to v2 migration guide (`usage/migration-v2.md`) covering the config key, provider shape, override field renames, and removed features, linked from the README and the bundle index.
+- Added a reasoning and thinking effort guide (`usage/reasoning.md`) covering the capability flag, variant-based effort, and the Lemonade backend support caveats, linked from the README, index, usage guide, and options reference.
 
 ## 2026-09-13
 

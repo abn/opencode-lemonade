@@ -29,7 +29,7 @@ This plugin connects OpenCode to a Lemonade server, discovering all available or
 - **Dynamic model discovery**: queries the Lemonade server (`/v1/models`) and registers all matching models under the `lemonade` provider.
 - **Hardware and context awareness**: reads context length (`ctx_size` / `context_length`) and output token limits from Lemonade model specs.
 - **Multimodal / vision detection**: detects vision models (e.g. Qwen 2.5 VL) from labels (`vision`, `vlm`) or ids, setting the model input modalities to text and image.
-- **Capability mapping**: maps the Lemonade `tool-calling` label to the v2 model tools capability, and the `reasoning` label to `compatibility.reasoningField` so reasoning models are recognized and their reasoning content is parsed.
+- **Capability mapping**: maps the Lemonade `tool-calling` label to the v2 model tools capability, and the `reasoning` label to `compatibility.reasoningField` so reasoning models are recognized and their reasoning content is parsed. Thinking effort is configured per model as variants; see the [reasoning guide](docs/usage/reasoning.md).
 - **Downloaded-only filtering**: distinguishes local on-disk weights from cloud backends, so only ready-to-run local models are exposed by default.
 - **Flexible pattern filtering**: filter models with glob wildcards (`*`, `?`), regular expressions (`/.../flags`), or label tags.
 - **Layered API resolution**: respects explicit options, `{env:...}` / `{file:...}` templates, existing provider settings, and Lemonade environment variables (`LEMONADE_HOST`, `LEMONADE_API_KEY`, `LEMONADE_ADMIN_API_KEY`).

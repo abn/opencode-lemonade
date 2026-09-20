@@ -51,9 +51,9 @@ increasing precedence:
 Overrides use v2 `Model.Info` field names, the same shape OpenCode stores for a
 model: `name`, `limit.context`, `limit.output`, `capabilities.tools`,
 `capabilities.input`, `capabilities.output`, `compatibility.reasoningField`,
-`modelID`, `status`, and so on. `modelID` maps the entry to a different API
-model id, for example an Azure-style deployment name where the server model id
-differs from the id sent in requests.
+`variants`, `modelID`, `status`, and so on. `modelID` maps the entry to a
+different API model id, for example an Azure-style deployment name where the
+server model id differs from the id sent in requests.
 
 Merging is recursive: nested objects merge field by field, while scalar values
 and arrays replace the discovered value. `undefined` values are ignored, so an
@@ -70,3 +70,7 @@ Models the server labels `reasoning` are registered with
 model as reasoning-capable and selects the response field that carries
 reasoning. Override `compatibility.reasoningField` per model when a backend uses
 a different field, such as `reasoning`.
+
+Thinking effort is controlled through model `variants`. See the
+[reasoning guide](../usage/reasoning.md) for the mechanism and the support
+caveats.

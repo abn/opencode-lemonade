@@ -88,6 +88,15 @@ Overrides use v2 `Model.Info` field names, so capabilities live under `capabilit
 }
 ```
 
+## Reasoning and thinking effort
+
+Reasoning-capable models are detected from the Lemonade `reasoning` label and
+registered with `compatibility.reasoningField`. Thinking effort is not detected,
+because support is model-specific: it is expressed as model `variants` and has to
+be declared through overrides per model. See the
+[reasoning guide](reasoning.md) for the mechanism, the backend support matrix,
+and examples.
+
 ## Configuration scenarios
 
 Non-trivial setups. Each example shows the plugin options object.
